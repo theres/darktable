@@ -34,6 +34,8 @@ typedef enum dt_undo_type_t
 
 typedef void *dt_undo_data_t;
 
+typedef unsigned long long dt_undo_tag_t;
+
 typedef struct dt_undo_t
 {
   GList *undo_list, *redo_list;
@@ -43,8 +45,8 @@ typedef struct dt_undo_t
 dt_undo_t *dt_undo_init(void);
 void dt_undo_cleanup(dt_undo_t *self);
 
-// record a change that will be insered into the undo list
-void dt_undo_record(dt_undo_t *self, gpointer user_data, dt_undo_type_t type, dt_undo_data_t *data,
+// record a change that will be insered into the undo list. if tag is identical to the top item nothing is recorded
+void dt_undo_record(dt_undo_t *self, gpointer user_data, dt_undo_type_t type, dt_undo_data_t *data, dt_undo_tag_t tag,
                     void (*undo)(gpointer user_data, dt_undo_type_t type, dt_undo_data_t *item),
                     void (*free_data)(gpointer data));
 

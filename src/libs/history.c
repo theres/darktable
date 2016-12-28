@@ -371,6 +371,19 @@ static void _lib_history_module_remove_callback(gpointer instance, dt_iop_module
   dt_undo_iterate (darktable.undo, DT_UNDO_HISTORY, module, TRUE, &_history_invalidate_cb);
 }
 
+static unsigned long long _get_timestamp(void)
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (unsigned long long)(tv.tv_sec) * 1000 + (unsigned long long)(tv.tv_usec) / 1000;
+}
+
+static dt_undo_tag_t _get_tag(dt_iop_module_t *module)
+{
+  const unsigned long long ts = _get_timestamp() / 500;
+  return (dt_undo_tag_t)module + (dt_undo_tag_t)ts;
+}
+
 static void _lib_history_change_callback(gpointer instance, gpointer user_data)
 {
   dt_lib_module_t *self = (dt_lib_module_t *)user_data;
@@ -389,12 +402,16 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
   if (d->record_undo == TRUE)
   {
     /* record undo/redo history snapshot */
+
     dt_undo_history_t *hist = malloc(sizeof(dt_undo_history_t));
     hist->snapshot = _duplicate_history(darktable.develop->history);
     hist->end = darktable.develop->history_end;
 
+    const GList *l = g_list_first(hist->snapshot);
+    const dt_dev_history_item_t *hitem = l == NULL ? NULL : (dt_dev_history_item_t *)l->data;
+
     dt_undo_record(darktable.undo, self, DT_UNDO_HISTORY, (dt_undo_data_t *)hist,
-                   _pop_undo, _history_undo_data_free);
+                   hitem ? _get_tag(hitem->module) : 0, _pop_undo, _history_undo_data_free);
   }
   else
     d->record_undo = TRUE;

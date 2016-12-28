@@ -135,6 +135,19 @@ static _masks_undo_data_t *_create_snapshot(GList *forms, dt_masks_form_t *form,
   return data;
 }
 
+static unsigned long long _get_timestamp(void)
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (unsigned long long)(tv.tv_sec) * 1000 + (unsigned long long)(tv.tv_usec) / 1000;
+}
+
+static dt_undo_tag_t _get_tag(dt_masks_form_t *form)
+{
+  const unsigned long long ts = _get_timestamp() / 500;
+  return (dt_undo_tag_t)form->formid + ((dt_undo_tag_t)ts << 8);
+}
+
 void _masks_free_undo(gpointer data)
 {
   _masks_undo_data_t *udata = (_masks_undo_data_t *)data;
@@ -169,7 +182,7 @@ void _masks_do_undo(gpointer user_data, dt_undo_type_t type, dt_undo_data_t *ite
 static void _do_record_undo(dt_develop_t *dev, dt_masks_form_t *form)
 {
   dt_undo_record(darktable.undo, dev, DT_UNDO_MASK, (dt_undo_data_t *)_create_snapshot(dev->forms, form, dev),
-                 _masks_do_undo, _masks_free_undo);
+                 form ? _get_tag(form) : 0, _masks_do_undo, _masks_free_undo);
 }
 
 static void _set_hinter_message(dt_masks_form_gui_t *gui, dt_masks_type_t formtype)

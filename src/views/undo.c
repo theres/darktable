@@ -25,6 +25,7 @@ typedef struct dt_undo_item_t
   gpointer user_data;
   dt_undo_type_t type;
   dt_undo_data_t *data;
+  dt_undo_tag_t tag;
   void (*undo)(gpointer user_data, dt_undo_type_t type, dt_undo_data_t *data);
   void (*free_data)(gpointer data);
 } dt_undo_item_t;
@@ -51,25 +52,37 @@ static void _free_undo_data(void *p)
   free(item);
 }
 
-void dt_undo_record(dt_undo_t *self, gpointer user_data, dt_undo_type_t type, dt_undo_data_t *data,
+void dt_undo_record(dt_undo_t *self, gpointer user_data, dt_undo_type_t type, dt_undo_data_t *data, dt_undo_tag_t tag,
                     void (*undo)(gpointer user_data, dt_undo_type_t type, dt_undo_data_t *item),
                     void (*free_data)(gpointer data))
 {
-  dt_undo_item_t *item = malloc(sizeof(dt_undo_item_t));
+  const GList *top = g_list_first(self->undo_list);
+  const dt_undo_item_t *top_item = top == NULL ? NULL : (dt_undo_item_t *)top->data;
 
-  item->user_data = user_data;
-  item->type      = type;
-  item->data      = data;
-  item->undo      = undo;
-  item->free_data = free_data;
+  if (tag == 0 || !top_item || top_item->tag != tag)
+  {
+    dt_undo_item_t *item = malloc(sizeof(dt_undo_item_t));
 
-  dt_pthread_mutex_lock(&self->mutex);
-  self->undo_list = g_list_prepend(self->undo_list, (gpointer)item);
+    item->user_data = user_data;
+    item->type      = type;
+    item->data      = data;
+    item->undo      = undo;
+    item->free_data = free_data;
+    item->tag       = tag;
 
-  // recording an undo data invalidate all the redo
-  g_list_free_full(self->redo_list, _free_undo_data);
-  self->redo_list = NULL;
-  dt_pthread_mutex_unlock(&self->mutex);
+    dt_pthread_mutex_lock(&self->mutex);
+    self->undo_list = g_list_prepend(self->undo_list, (gpointer)item);
+
+    // recording an undo data invalidate all the redo
+    g_list_free_full(self->redo_list, _free_undo_data);
+    self->redo_list = NULL;
+    dt_pthread_mutex_unlock(&self->mutex);
+  }
+  else
+  {
+    // free the undo data as not used
+    free_data(data);
+  }
 }
 
 void dt_undo_do_redo(dt_undo_t *self, uint32_t filter)
