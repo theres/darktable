@@ -98,7 +98,24 @@ void dt_view_manager_gui_init(dt_view_manager_t *vm)
   {
     dt_view_t *cur_view = &vm->view[k];
     if(cur_view->gui_init) cur_view->gui_init(cur_view);
+  
   }
+/*  
+  ctx =  gtk_style_context_new(); // gtk_widget_get_style_context(main_window);
+  p = gtk_widget_path_new();
+  fprintf(stderr, "aa1: %s\n", gtk_widget_path_to_string(p));
+  gtk_widget_path_append_type(p, GTK_TYPE_WINDOW);
+  gtk_widget_path_iter_set_name(p, -1, "thumb");
+      
+  fprintf(stderr, "aa2: %s\n", gtk_widget_path_to_string(p));
+  gtk_style_context_set_path(ctx, p);
+  //gtk_style_context_save(ctx);
+  //gtk_style_context_add_class(ctx, "testthumb");
+  
+  GdkRGBA a = (GdkRGBA){ .2, .2, .2, 1.0 };
+  gtk_style_context_get_color(ctx, GTK_STATE_FLAG_NORMAL, &a);
+  fprintf(stderr, "col %s",gdk_rgba_to_string(&a)); 
+*/
 }
 
 void dt_view_manager_cleanup(dt_view_manager_t *vm)
@@ -823,6 +840,115 @@ int32_t dt_view_get_image_to_act_on()
   }
 }
 
+void dt_set_color(cairo_t *cr, GtkStyleContext *_ctx){
+  GdkRGBA a = (GdkRGBA){ 1, .0, .0, 1.0 };
+  gtk_style_context_get_color(_ctx, gtk_style_context_get_state(_ctx), &a);
+  //fprintf(stderr, "col %s",gdk_rgba_to_string(&a)); 
+  cairo_set_source_rgb(cr, a.red, a.green, a.blue);
+}
+
+void dt_set_bg_color(cairo_t *cr, GtkStyleContext *_ctx){
+  GdkRGBA a = (GdkRGBA){ 1, .0, .0, 1.0 };
+  gtk_style_context_get_background_color(_ctx, gtk_style_context_get_state(_ctx), &a);
+  //fprintf(stderr, "bg col %s",gdk_rgba_to_string(&a)); 
+  cairo_set_source_rgb(cr, a.red, a.green, a.blue);
+}
+
+void dt_set_border_color(cairo_t *cr, GtkStyleContext *_ctx){
+  GdkRGBA a = (GdkRGBA){ 1, .0, .0, 1.0 };
+  gtk_style_context_get_border_color(_ctx, gtk_style_context_get_state(_ctx), &a);
+// fprintf(stderr, "border col %s",gdk_rgba_to_string(&a)); 
+  cairo_set_source_rgb(cr, a.red, a.green, a.blue);
+}
+
+int dt_set_border_width(cairo_t *cr, GtkStyleContext *ctx){
+  GtkBorder border = (GtkBorder) { 0, 0, 0, 0};
+  gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &border);
+  //fprintf(stderr, "border %d %d %d %d\n", border.top, border.left, border.bottom, border.right);
+  if(border.top){
+    cairo_set_line_width(cr, DT_PIXEL_APPLY_DPI(border.top));
+  }
+  return border.top;
+}
+
+void dt_draw_with_style(cairo_t *cr, GtkStyleContext *ctx){
+  dt_set_bg_color(cr, ctx);
+  int border_width = dt_set_border_width(cr, ctx);
+  if(border_width){  
+    cairo_fill_preserve(cr);
+    dt_set_border_color(cr, ctx);
+    cairo_stroke(cr);
+  }else{
+    cairo_fill(cr);
+  }
+}
+
+void dt_draw_text_with_style(cairo_t *cr, GtkStyleContext *ctx, const char* txt, int x, int y, int width, int height){
+      PangoLayout *layout;
+      PangoRectangle ink;
+      PangoFontDescription *desc; // = gtk_style_context_get_font(ctx, gtk_style_context_get_state(ctx));
+      gtk_style_context_get (ctx, gtk_style_context_get_state(ctx), "font", &desc, NULL);
+      layout = pango_cairo_create_layout(cr);
+      
+      pango_layout_set_font_description(layout, desc);
+      pango_layout_set_text(layout, txt, -1);
+      pango_layout_get_pixel_extents(layout, &ink, NULL);
+
+
+      GtkBorder tm = (GtkBorder) { -1, -1, -1, -1 };
+      gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
+      GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
+      gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
+      int t_width, t_height;
+      pango_layout_get_pixel_size(layout, &t_width, &t_height);
+      gtk_render_background(ctx, cr, x+tm.left, y+tm.top, t_width+tm.right+tb.left+tb.right, t_height+tm.bottom+tb.top+tb.bottom);
+      gtk_render_layout(ctx, cr, x - ink.x + tm.left+tb.left, y + tm.top + tb.top, layout);
+      g_object_unref(layout);
+
+}
+
+GtkStyleContext* dt_create_style_context(GtkStyleContext* parent, const char* selector, const char **siblings, gint pos){
+    GtkStyleContext *context;
+
+    context = gtk_style_context_new ();
+
+    if(parent == NULL){
+      GtkWidget *main_window = dt_ui_main_window(darktable.gui->ui);
+      parent = gtk_widget_get_style_context(main_window);
+    }
+    
+    GtkWidgetPath *path = gtk_widget_path_copy(gtk_style_context_get_path(parent));
+    
+    gtk_widget_path_iter_set_state(path, -1, gtk_style_context_get_state(parent));
+    GList* classes = gtk_style_context_list_classes(parent);
+    GList* class;
+    for(class = classes; class != NULL; class = class->next){
+      gtk_widget_path_iter_add_class(path, -1, class->data);
+    }
+    g_list_free(classes);
+
+
+    //after fully move to gtk >=3.20 'gtk_widget_path_iter_set_object_name' should be used instead of '*_set_name' 
+    if(pos == -1){
+      gtk_widget_path_append_type(path, G_TYPE_NONE);
+      gtk_widget_path_iter_set_object_name(path, -1, selector);
+    }else{
+      GtkWidgetPath *siblings_path = gtk_widget_path_new();
+      for(guint i=0; siblings[i]; ++i){
+        gtk_widget_path_append_type(path, G_TYPE_NONE);
+        gtk_widget_path_iter_set_name(path, -1, selector);
+      }
+      gtk_widget_path_append_with_siblings(path, siblings_path, pos);
+      gtk_widget_path_unref(siblings_path);
+    }
+
+    gtk_style_context_set_path(context, path);
+    gtk_style_context_set_parent(context, parent);
+    gtk_style_context_set_state(context, gtk_widget_path_iter_get_state(path, -1));
+    gtk_widget_path_unref(path);
+    return context;
+} 
+
 int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo_t *cr, int32_t width,
                          int32_t height, int32_t zoom, int32_t px, int32_t py, gboolean full_preview, gboolean image_only)
 {
@@ -832,9 +958,11 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
 // on my machine with 7 image per row it seems grouping has the largest
 // impact from around 400ms -> 55ms per redraw.
 
-  // active if zoom>1 or in the proper area
-  const gboolean in_metadata_zone = (px < width && py < height / 2) || (zoom > 1);
 
+  // active if zoom>1 or in the proper area
+  GtkStyleContext *ctx = dt_create_style_context(NULL, "preview", NULL, -1); 
+
+  const gboolean in_metadata_zone = (px < width && py < height / 2) || (zoom > 1);
   const gboolean draw_thumb = TRUE;
   const gboolean draw_colorlabels = !image_only && (darktable.gui->show_overlays || in_metadata_zone);
   const gboolean draw_local_copy = !image_only && (darktable.gui->show_overlays || in_metadata_zone);
@@ -845,11 +973,11 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   const gboolean draw_audio = !image_only;
 
   cairo_save(cr);
-  float bgcol = 0.4, fontcol = 0.425, bordercol = 0.1, outlinecol = 0.2;
+  float /*bgcol = 0.4, fontcol = 0.425,*/ bordercol = 0.1, outlinecol = 0.2;
   int selected = 0, is_grouped = 0;
   // this is a gui thread only thing. no mutex required:
   const int imgsel = dt_control_get_mouse_over_id(); //  darktable.control->global_settings.lib_image_mouse_over_id;
-
+ 
   if (draw_selected)
   {
     /* clear and reset statements */
@@ -864,17 +992,23 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   dt_image_t buffered_image;
   const dt_image_t *img = dt_image_cache_testget(darktable.image_cache, imgid, 'r');
 
+  if (image_only) {
+    gtk_style_context_add_class(ctx, "image_only");
+  } else if (zoom == 1) {
+    gtk_style_context_add_class(ctx, "zoom1");
+  }
+
+  gtk_style_context_set_state(ctx, GTK_STATE_FLAG_NORMAL);
   if(selected == 1 && zoom != 1) // If zoom == 1 there is no need to set colors here
   {
+   gtk_style_context_set_state(ctx, gtk_style_context_get_state(ctx) | GTK_STATE_FLAG_SELECTED);
     outlinecol = 0.4;
-    bgcol = 0.6;
-    fontcol = 0.5;
   }
   if(imgsel == imgid || zoom == 1)
-  {
-    bgcol = 0.8; // mouse over
-    fontcol = 0.7;
+  {                                                       
+    gtk_style_context_set_state(ctx, gtk_style_context_get_state(ctx) |GTK_STATE_FLAG_PRELIGHT);
     outlinecol = 0.6;
+    
     // if the user points at this image, we really want it:
     if(!img) img = dt_image_cache_get(darktable.image_cache, imgid, 'r');
   }
@@ -899,49 +1033,17 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   else
   {
     double x0 = DT_PIXEL_APPLY_DPI(1), y0 = DT_PIXEL_APPLY_DPI(1), rect_width = width - DT_PIXEL_APPLY_DPI(2),
-           rect_height = height - DT_PIXEL_APPLY_DPI(2), radius = DT_PIXEL_APPLY_DPI(5);
-    double x1, y1, off, off1;
+           rect_height = height - DT_PIXEL_APPLY_DPI(2);//, radius = DT_PIXEL_APPLY_DPI(5);
 
-    x1 = x0 + rect_width;
-    y1 = y0 + rect_height;
-    off = radius * 0.666;
-    off1 = radius - off;
-    cairo_move_to(cr, x0, y0 + radius);
-    cairo_curve_to(cr, x0, y0 + off1, x0 + off1, y0, x0 + radius, y0);
-    cairo_line_to(cr, x1 - radius, y0);
-    cairo_curve_to(cr, x1 - off1, y0, x1, y0 + off1, x1, y0 + radius);
-    cairo_line_to(cr, x1, y1 - radius);
-    cairo_curve_to(cr, x1, y1 - off1, x1 - off1, y1, x1 - radius, y1);
-    cairo_line_to(cr, x0 + radius, y1);
-    cairo_curve_to(cr, x0 + off1, y1, x0, y1 - off1, x0, y1 - radius);
-    cairo_close_path(cr);
-    cairo_set_source_rgb(cr, bgcol, bgcol, bgcol);
-    cairo_fill_preserve(cr);
-    cairo_set_line_width(cr, 0.005 * width);
-    cairo_set_source_rgb(cr, outlinecol, outlinecol, outlinecol);
-    cairo_stroke(cr);
-
+    gtk_render_background(ctx, cr, x0,y0, rect_width, rect_height); 
+    gtk_render_frame(ctx, cr, x0,y0,rect_width, rect_height);
     if(img)
     {
-      PangoLayout *layout;
-      PangoRectangle ink;
-      PangoFontDescription *desc = pango_font_description_copy_static(darktable.bauhaus->pango_font_desc);
-      pango_font_description_set_weight(desc, PANGO_WEIGHT_BOLD);
-      const int fontsize = 0.25 * width;
-      pango_font_description_set_absolute_size(desc, fontsize * PANGO_SCALE);
-      layout = pango_cairo_create_layout(cr);
-      pango_layout_set_font_description(layout, desc);
+      GtkStyleContext* extensionCtx = dt_create_style_context(ctx, "extension", NULL, -1); 
       const char *ext = img->filename + strlen(img->filename);
       while(ext > img->filename && *ext != '.') ext--;
       ext++;
-      cairo_set_source_rgb(cr, fontcol, fontcol, fontcol);
-      pango_layout_set_text(layout, ext, -1);
-      pango_layout_get_pixel_extents(layout, &ink, NULL);
-      cairo_move_to(cr, .025 * width - ink.x, .24 * height - fontsize);
-      pango_cairo_show_layout(cr, layout);
-      pango_font_description_free(desc);
-      g_object_unref(layout);
-
+      dt_draw_text_with_style(cr, extensionCtx, ext, 0, 0, width, height);
     }
   }
 
@@ -949,7 +1051,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   dt_mipmap_size_t mip
       = dt_mipmap_cache_get_matching_size(darktable.mipmap_cache, imgwd * width, imgwd * height);
   dt_mipmap_cache_get(darktable.mipmap_cache, &buf, imgid, mip, DT_MIPMAP_BEST_EFFORT, 'r');
-  // if we got a different mip than requested, and it's not a skull (8x8 px), we count
+  // if we got a different mip than requested, and it's darktable.gui->styleContexts[DT_GUI_STYLE_CONTEXT_PREVIEW]; not a skull (8x8 px), we count
   // this thumbnail as missing (to trigger re-exposure)
   if(buf.size != mip && buf.width != 8 && buf.height != 8) missing = 1;
 
@@ -1028,23 +1130,36 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
           = cairo_image_surface_create_for_data(rgbbuf, CAIRO_FORMAT_RGB24, buf.width, buf.height, stride);
       }
 
-      if(zoom == 1 && !image_only)
-      {
-        const int32_t tb = DT_PIXEL_APPLY_DPI(dt_conf_get_int("plugins/darkroom/ui/border_size"));
-        scale = fminf((width - 2 * tb) / (float)buf.width, (height - 2 * tb) / (float)buf.height);
-      }
-      else
-        scale = fminf(width * imgwd / (float)buf.width, height * imgwd / (float)buf.height);
-    }
+     // if(zoom == 1 && !image_only)
+     // {
+        GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
+        gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
 
+        GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
+        gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
+        //const int32_t tb = DT_PIXEL_APPLY_DPI(dt_conf_get_int("plugins/darkroom/ui/border_size"));
+        float horizontal_shrink = DT_PIXEL_APPLY_DPI((float)tb.left + tb.right + tm.left + tm.right);
+        float vertical_shrink = DT_PIXEL_APPLY_DPI((float)tb.top + tb.bottom + tm.top + tm.bottom);
+        scale = fminf((width - horizontal_shrink) / (float)buf.width, (height - vertical_shrink) / (float)buf.height);
+    //  }
+//      else
+  //      scale = fminf(width * imgwd / (float)buf.width, height * imgwd / (float)buf.height);
+    }
     // draw centered and fitted:
     cairo_save(cr);
-
+    GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
+    gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
+    GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
+    gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
+    
     if (image_only) // in this case we want to display the picture exactly at (px, py)
       cairo_translate(cr, px, py);
-    else
-      cairo_translate(cr, width / 2.0, height / 2.0);
+    else if(!buf.buf)
+      cairo_translate(cr, width/2.0, height/2.0);
+    else{
 
+      cairo_translate(cr, buf.width*scale / 2.0 + DT_PIXEL_APPLY_DPI(tm.left+tb.left), buf.height*scale / 2.0 +DT_PIXEL_APPLY_DPI(tm.top+tb.top));
+    }
     cairo_scale(cr, scale, scale);
 
     if(buf.buf && surface)
@@ -1115,6 +1230,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
       }
     }
   }
+
   cairo_restore(cr);
 
   dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
@@ -1149,7 +1265,15 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
         y = .12 * fscale;
       const gboolean image_is_rejected = (img && ((img->flags & 0x7) == 6));
 
-      if(img)
+      if(img){
+        gtk_style_context_save(ctx);
+        GtkStyleContext *starctx = dt_create_style_context(ctx, "star", NULL, -1);
+
+        //GtkStyleContext *starctx = darktable.gui->styleContexts[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR];
+        //fprintf(stderr, "path (ctx) %s\n", gtk_widget_path_to_string(gtk_style_context_get_path(ctx)));
+        //fprintf(stderr, "state (ctx) %d\n", gtk_style_context_get_state(ctx));
+        //fprintf(stderr, "path (star) %s\n\n", gtk_widget_path_to_string(gtk_style_context_get_path(starctx)));
+        //fprintf(stderr, "state (starctx) %d\n", gtk_style_context_get_state(starctx));
         for(int k = 0; k < 5; k++)
         {
           if(zoom != 1)
@@ -1164,26 +1288,30 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
             // printf ("Image selected: %d - Image processed: %d\n", imgsel, imgid);
             if((imgsel == imgid || zoom == 1) && ((px - x) * (px - x) + (py - y) * (py - y) < r1 * r1))
             {
+              gtk_style_context_set_state(starctx, gtk_style_context_get_state(starctx) |GTK_STATE_FLAG_PRELIGHT);
               *image_over = DT_VIEW_STAR_1 + k;
-              cairo_fill(cr);
             }
             else if((img->flags & 0x7) > k)
             {
-              cairo_fill_preserve(cr);
-              cairo_set_source_rgb(cr, 1.0 - bordercol, 1.0 - bordercol, 1.0 - bordercol);
-              cairo_stroke(cr);
-              cairo_set_source_rgb(cr, outlinecol, outlinecol, outlinecol);
+              gtk_style_context_set_state(starctx, GTK_STATE_FLAG_SELECTED);
             }
-            else
-              cairo_stroke(cr);
+            else{
+              gtk_style_context_set_state(starctx, GTK_STATE_FLAG_NORMAL);
+            }
+            dt_draw_with_style(cr, starctx);
+        //    fprintf(stderr, "state (starctx) %d\n", gtk_style_context_get_state(starctx));
+         //   fprintf(stderr, "path (star) %s\n\n", gtk_widget_path_to_string(gtk_style_context_get_path(starctx)));
           }
         }
+        g_object_unref(starctx);
+      }
 
       // Image rejected?
       if(zoom != 1)
         x = 0.11 * width;
       else
         x = .04 * fscale;
+
 
       if(image_is_rejected) cairo_set_source_rgb(cr, 1., 0., 0.);
 
@@ -1259,7 +1387,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
           _y = y - (.17 * .04) * fscale;
         }
         cairo_save(cr);
-        if(img && (imgid != img->group_id)) cairo_set_source_rgb(cr, fontcol, fontcol, fontcol);
+        if(img && (imgid != img->group_id)) dt_set_color(cr, ctx);//cairo_set_source_rgb(cr, fontcol, fontcol, fontcol);
         dtgtk_cairo_paint_grouping(cr, _x, _y, s, s, 23);
         cairo_restore(cr);
         // mouse is over the grouping icon
@@ -1424,6 +1552,9 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   const double end = dt_get_wtime();
   if(darktable.unmuted & DT_DEBUG_PERF)
     dt_print(DT_DEBUG_LIGHTTABLE, "[lighttable] image expose took %0.04f sec\n", end - start);
+  
+  g_object_unref(ctx);
+  //gtk_style_context_restore(ctx);
   return missing;
 }
 

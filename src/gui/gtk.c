@@ -993,6 +993,49 @@ int dt_gui_gtk_init(dt_gui_gtk_t *gui)
   c[DT_GUI_COLOR_LIGHTTABLE_PREVIEW_BG] = (GdkRGBA){ .1, .1, .1, 1.0 };
   gtk_style_context_lookup_color(ctx, "lighttable_preview_bg_color", &c[DT_GUI_COLOR_LIGHTTABLE_PREVIEW_BG]);
 
+  c[DT_GUI_COLOR_THUMBINAL_BG] = (GdkRGBA){ .4, .4, .4, 1.0 };
+  gtk_style_context_lookup_color(ctx, "thumbinal_bg_color", &c[DT_GUI_COLOR_THUMBINAL_BG]);
+  
+  c[DT_GUI_COLOR_THUMBINAL_FONT] = (GdkRGBA){ .425, .425, .425, 1.0 };
+  gtk_style_context_lookup_color(ctx, "thumbinal_font_color", &c[DT_GUI_COLOR_THUMBINAL_FONT]);
+
+  c[DT_GUI_COLOR_THUMBINAL_SELECTED_BG] = (GdkRGBA){ .6, .6, .6, 1.0 };
+  gtk_style_context_lookup_color(ctx, "thumbinal_selected_bg_color", &c[DT_GUI_COLOR_THUMBINAL_SELECTED_BG]);
+
+  c[DT_GUI_COLOR_THUMBINAL_SELECTED_FONT] = (GdkRGBA){ .5, .5, .5, 1.0 };
+  gtk_style_context_lookup_color(ctx, "thumbinal_selected_font_color", &c[DT_GUI_COLOR_THUMBINAL_SELECTED_FONT]);
+
+  c[DT_GUI_COLOR_THUMBINAL_MOUSEOVER_BG] = (GdkRGBA){ .8, .8, .8, 1.0 };
+  gtk_style_context_lookup_color(ctx, "thumbinal_mouseover_bg_color", &c[DT_GUI_COLOR_THUMBINAL_MOUSEOVER_BG]);
+
+  c[DT_GUI_COLOR_THUMBINAL_MOUSEOVER_FONT] = (GdkRGBA){ .7, .7, .7, 1.0 };
+  gtk_style_context_lookup_color(ctx, "thumbinal_mouseover_font_color", &c[DT_GUI_COLOR_THUMBINAL_MOUSEOVER_FONT]);
+
+
+  GtkStyleContext **sc = darktable.gui->styleContexts;
+  GtkWidgetPath *p;
+
+  sc[DT_GUI_STYLE_CONTEXT_PREVIEW] = gtk_style_context_new(); // gtk_widget_get_style_context(main_window);
+  p = gtk_widget_path_new();
+  gtk_widget_path_append_type(p, G_TYPE_NONE);
+  gtk_widget_path_iter_set_name(p, 0, "preview");
+  gtk_style_context_set_path(sc[DT_GUI_STYLE_CONTEXT_PREVIEW], p);
+  gtk_widget_path_unref(p);
+  
+  sc[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR] = gtk_style_context_new(); // gtk_widget_get_style_context(main_window);
+  p = gtk_widget_path_new();
+  gtk_widget_path_append_type(p, G_TYPE_NONE);
+  gtk_widget_path_append_type(p, G_TYPE_NONE);
+  gtk_widget_path_iter_set_name(p, 0, "preview");
+  gtk_widget_path_iter_set_name(p, 1, "star");
+  gtk_style_context_set_path(sc[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR], p);
+  gtk_style_context_set_parent(sc[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR], sc[DT_GUI_STYLE_CONTEXT_PREVIEW]);
+
+  gtk_style_context_set_state(sc[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR], gtk_widget_path_iter_get_state(p, -1));
+  gtk_widget_path_unref(p);
+
+  fprintf(stderr, "path %s", gtk_widget_path_to_string(gtk_style_context_get_path(sc[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR])));
+
   // let's try to support pressure sensitive input devices like tablets for mask drawing
   dt_print(DT_DEBUG_INPUT, "[input device] Input devices found:\n\n");
 

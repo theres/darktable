@@ -1,29 +1,79 @@
-@define-color bg_color #212121;
-@define-color plugin_bg_color #252525;
-@define-color fg_color #cacaca;
-@define-color base_color #ffffff;
-@define-color text_color #3C3C3C;
-@define-color selected_bg_color #353535;
-@define-color selected_fg_color #e2e2e2;
-@define-color tooltip_bg_color #000000;
-@define-color tooltip_fg_color #ffffff;
-@define-color really_dark_bg_color #111;
-@define-color darkroom_bg_color #333333;
-@define-color darkroom_preview_bg_color shade(@darkroom_bg_color, .5);
-@define-color lighttable_bg_color @darkroom_bg_color;
-@define-color lighttable_preview_bg_color shade(@lighttable_bg_color, .5);
 
-@define-color dark_bg_color #350000;
+@define-color bg_color #eee;
+@define-color plugin_bg_color #aaa;
+@define-color fg_color #777;
+@define-color base_color red;
+@define-color text_color #222;
+@define-color selected_bg_color #eee;
+@define-color selected_fg_color #333;
+@define-color tooltip_bg_color #fff;
+@define-color tooltip_fg_color #333;
+@define-color really_dark_bg_color #444;
+
+@define-color darkroom_bg_color shade(@selected_bg_color, 0.9);
+@define-color darkroom_preview_bg_color shade(red, 1.5);
+@define-color lighttable_bg_color @darkroom_bg_color;
+@define-color lighttable_preview_bg_color red; /*shade(@lighttable_bg_color, 1.5);*/
+
+@define-color thumbinal_bg_color #00ff00;
+@define-color thumbinal_font_color #005500;
+@define-color thumbinal_selected_bg_color #00ffff;
+@define-color thumbinal_selected_font_color #005555;
+@define-color thumbinal_mouseover_bg_color #0000ff;
+@define-color thumbinal_mouseover_font_color #000055;
+
+@define-color dark_bg_color #333;
 
 * {
-  font: Sans 8;
+  font: Oswald;
+  font-size: 9pt;
+  font-weight: 300;
   color: @fg_color;
   background-color: @bg_color;
-  border-color: #111111;
+  border-color: #ccc;
   text-shadow:none;
 /*  margin: 0; */ /* this makes scroll bars super wide. */
   padding: 0;
   background-image: none;
+}
+
+#preview {
+  background-color: #ff2233;
+  color: #3344ff;
+  border: #00f 10px solid;
+  border-radius: 3px;
+  box-shadow: 10px 10px 10px red;
+  margin-left:10px;
+  font: Sans;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+
+#preview:hover{
+  background-color: #0f0;
+  color: #ff5;
+  border-color: #ff0;
+  font-family: Oswald;
+}
+
+#preview:selected{
+  background-color: #ffff33;
+}
+
+#preview #star{
+  background-color: #000;
+  border: 0px #fff solid;
+}
+
+#preview #star:hover{
+  background-color: #000;
+  border: 1px #f00 solid;
+}
+
+#preview #star:selected{
+  background-color: #f00;
+  border-color: #f00;
 }
 
 GtkAlignment
@@ -32,7 +82,7 @@ GtkAlignment
 }
 
 #main_window *:insensitive {
-  color: black;
+  color: #eaa;
 }
 
 #iop-plugin-ui GtkBox,
@@ -63,7 +113,7 @@ GtkAlignment
 #lib-plugin-ui GtkComboBox *,
 #lib-plugin-ui GtkComboBox GtkToggleButton *
 {
-  background-color: shade(@selected_bg_color, 0.8); /* 'transparent' doesn't work for those it seems */
+  background-color: shade(@selected_bg_color, 0.9); /* 'transparent' doesn't work for those it seems */
 }
 #lib-plugin-ui GtkComboBox *:hover
 {
@@ -144,9 +194,9 @@ GtkAlignment
 #iop-plugin-ui,
 #lib-plugin-ui
 {
-  border: 1px solid #171717;
+  border: 1px solid #ccc;
   border-radius: 2px;
-  box-shadow: inset 0 0 2px #171717;
+  box-shadow: inset 0 0 2px #ccc;
   margin: 0px;
   padding: 1px 4px 1px 4px;
   background-color: @selected_bg_color;
@@ -154,8 +204,8 @@ GtkAlignment
 #iop-plugin-ui:selected,
 #lib-plugin-ui:selected
 {
-  border: 1px solid #111111;
-  box-shadow: inset 0 0 2px #141414;
+  border: 1px solid #999;
+  box-shadow: inset 0 0 2px #bbb;
   border-radius: 2px;
   margin: 0px;
   padding: 1px 4px 1px 4px;
@@ -171,12 +221,16 @@ GtkTable {
 }
 
 #header_label,#darktable_label,#view_label {
-  color: shade(@fg_color, 0.7);
+  color: shade(@fg_color, 0.9);
   background-color: @bg_color;
-  font-size: 1.7em;
+  font-size: 1.4em;
   margin:0;
   border:0;
   padding:0;
+}
+
+#view_label{
+  font-size: 1.2em;
 }
 
 #view_label:hover {
@@ -186,11 +240,12 @@ GtkTable {
 #view_dropdown:selected *,
 #view_label:selected {
   color: shade(@fg_color, 0.9);
+  font-weight: normal;
 }
 
 #view_dropdown *
 {
-  color: shade(@fg_color, 0.7);
+  color: shade(@fg_color, 0.9);
   margin: 0;
   padding: 0;
   font-size: 1.1em;
@@ -198,7 +253,8 @@ GtkTable {
 
 #view_dropdown .button *
 {
-  font-size: 1.25em;
+  font-size: 1.0em;
+  background-color: red;
 }
 
 #view_dropdown *:insensitive
@@ -294,7 +350,7 @@ GtkFrame > GtkEventBox * {
 #iop-plugin-ui .entry:selected,
 #lib-plugin-ui .entry:selected,
 .entry:selected {
-  background-color:shade(@selected_bg_color, 1.7);
+  background-color:shade(@selected_bg_color, 1.2);
 }
 /* weird fix for black event boxes in light table lib modules: */
 #lib-plugin-ui GtkEventBox
@@ -342,6 +398,7 @@ GtkFrame > GtkEventBox * {
   -GtkRange-trough-border: -3;
   -GtkScale-slider-length: 11;
   margin:0px;
+  background-color: red;
 }
 
 .scale.trough.highlight
@@ -466,8 +523,8 @@ GtkDialog *
 GtkDialog .button *
 {
   padding: 5px;
-  background-color: shade(@bg_color, 1.7);
-  border-color:  shade(@bg_color, 1.7);
+  background-color: shade(@bg_color, 1.4);
+  border-color:  shade(@bg_color, 1.2);
 }
 
 GtkDialog .button:hover *
@@ -593,3 +650,5 @@ GtkFileChooserDialog .sidebar-row:hover
 {
   background-color: shade(@selected_bg_color, 1.2);
 }
+
+

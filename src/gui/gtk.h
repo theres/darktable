@@ -60,8 +60,20 @@ typedef enum dt_gui_color_t {
   DT_GUI_COLOR_DARKROOM_PREVIEW_BG,
   DT_GUI_COLOR_LIGHTTABLE_BG,
   DT_GUI_COLOR_LIGHTTABLE_PREVIEW_BG,
+  DT_GUI_COLOR_THUMBINAL_BG,
+  DT_GUI_COLOR_THUMBINAL_FONT,
+  DT_GUI_COLOR_THUMBINAL_SELECTED_BG,
+  DT_GUI_COLOR_THUMBINAL_SELECTED_FONT,
+  DT_GUI_COLOR_THUMBINAL_MOUSEOVER_BG,
+  DT_GUI_COLOR_THUMBINAL_MOUSEOVER_FONT,
   DT_GUI_COLOR_LAST
 } dt_gui_color_t;
+
+typedef enum dt_gui_style_context_t {
+  DT_GUI_STYLE_CONTEXT_PREVIEW = 0,
+  DT_GUI_STYLE_CONTEXT_PREVIEW_STAR,
+  DT_GUI_STYLE_CONTEXT_LAST
+} dt_gui_style_context_t;
 
 typedef struct dt_gui_gtk_t
 {
@@ -76,6 +88,8 @@ typedef struct dt_gui_gtk_t
 
   int32_t reset;
   GdkRGBA colors[DT_GUI_COLOR_LAST];
+
+  GtkStyleContext *styleContexts[DT_GUI_STYLE_CONTEXT_LAST];
 
   int32_t center_tooltip; // 0 = no tooltip, 1 = new tooltip, 2 = old tooltip
 
