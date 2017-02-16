@@ -883,8 +883,34 @@ void dt_draw_with_style(cairo_t *cr, GtkStyleContext *ctx){
   }
 }
 
+void dt_style_query_dimensions(GtkStyleContext *ctx, gint x, gint y, gint width, gint height, GdkRectangle *drawings, GdkRectangle *insiders){
+   GtkBorder margin = (GtkBorder) {-1, -1, -1, -1},
+             border = (GtkBorder) {-1, -1, -1, -1},
+             padding = (GtkBorder) {-1, -1, -1, -1};
+
+   GtkStateFlags state = gtk_style_context_get_state(ctx);  
+   gtk_style_context_get_margin(ctx, state,  &margin);
+   gtk_style_context_get_border(ctx, state,  &border);
+   gtk_style_context_get_padding(ctx, state,  &padding);
+
+   drawings->y = y + margin.top;
+   drawings->x = x + margin.left;
+   drawings->width = width - margin.right - margin.left;
+   drawings->height = height - margin.bottom - margin.top;
+  
+   int left_offset =  margin.left + border.left + padding.left;
+   int right_offset =  margin.right + border.right + padding.right;
+   int top_offset =  margin.top + border.top + padding.top;
+   int bottom_offset =  margin.bottom + border.bottom + padding.bottom;
+
+   insiders->x = x + left_offset;
+   insiders->y = y + top_offset;
+   insiders->width = width - left_offset - right_offset;
+   insiders->height = height - top_offset - bottom_offset; 
+}
+
 void dt_draw_text_with_style(cairo_t *cr, GtkStyleContext *ctx, const char* txt, int x, int y, int width, int height){
-      PangoLayout *layout;
+      /*PangoLayout *layout;
       PangoRectangle ink;
       PangoFontDescription *desc; // = gtk_style_context_get_font(ctx, gtk_style_context_get_state(ctx));
       gtk_style_context_get (ctx, gtk_style_context_get_state(ctx), "font", &desc, NULL);
@@ -894,17 +920,18 @@ void dt_draw_text_with_style(cairo_t *cr, GtkStyleContext *ctx, const char* txt,
       pango_layout_set_text(layout, txt, -1);
       pango_layout_get_pixel_extents(layout, &ink, NULL);
 
-
-      GtkBorder tm = (GtkBorder) { -1, -1, -1, -1 };
-      gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
-      GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
-      gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
-      int t_width, t_height;
+      gint t_width = 0, t_height = 0;
+      //GdkRectangle area = { 0, 0, 0, 0};
+      //GdkRectangle textarea = {0, 0, 0, 0};
+      //dt_style_query_dimensions(ctx, x,y,width, height, &area, &textarea);
       pango_layout_get_pixel_size(layout, &t_width, &t_height);
-      gtk_render_background(ctx, cr, x+tm.left, y+tm.top, t_width+tm.right+tb.left+tb.right, t_height+tm.bottom+tb.top+tb.bottom);
-      gtk_render_layout(ctx, cr, x - ink.x + tm.left+tb.left, y + tm.top + tb.top, layout);
+      //gtk_render_background(ctx, cr, x+tm.left, y+tm.top, t_width+tm.right+tb.left+tb.right, t_height+tm.bottom+tb.top+tb.bottom);
+      //gtk_render_layout(ctx, cr, x - ink.x + tm.left+tb.left, y + tm.top + tb.top, layout);
+      gtk_render_background(ctx, cr, x,y,width, height);
+      gtk_render_frame(ctx, cr, x,y,width, height);
+      gtk_render_layout(ctx, cr, x,y,layout);
       g_object_unref(layout);
-
+*/
 }
 
 GtkStyleContext* dt_create_style_context(GtkStyleContext* parent, const char* selector, const char **siblings, gint pos){
@@ -959,9 +986,9 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
 // impact from around 400ms -> 55ms per redraw.
 
 
-  // active if zoom>1 or in the proper area
   GtkStyleContext *ctx = dt_create_style_context(NULL, "preview", NULL, -1); 
 
+  // active if zoom>1 or in the proper area
   const gboolean in_metadata_zone = (px < width && py < height / 2) || (zoom > 1);
   const gboolean draw_thumb = TRUE;
   const gboolean draw_colorlabels = !image_only && (darktable.gui->show_overlays || in_metadata_zone);
@@ -1019,7 +1046,10 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
     dt_image_cache_read_release(darktable.image_cache, img);
     img = &buffered_image;
   }
-
+  
+  GdkRectangle outer_rect = {0, 0, 0, 0};
+  GdkRectangle inner_rect = {0, 0, 0, 0};
+    
   float imgwd = 0.90f;
   if (image_only)
   {
@@ -1032,24 +1062,28 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   }
   else
   {
-    double x0 = DT_PIXEL_APPLY_DPI(1), y0 = DT_PIXEL_APPLY_DPI(1), rect_width = width - DT_PIXEL_APPLY_DPI(2),
-           rect_height = height - DT_PIXEL_APPLY_DPI(2);//, radius = DT_PIXEL_APPLY_DPI(5);
+    //double x0 = DT_PIXEL_APPLY_DPI(1), y0 = DT_PIXEL_APPLY_DPI(1), rect_width = width - DT_PIXEL_APPLY_DPI(2),
+     //      rect_height = height - DT_PIXEL_APPLY_DPI(2);//, radius = DT_PIXEL_APPLY_DPI(5);
+    
 
-    gtk_render_background(ctx, cr, x0,y0, rect_width, rect_height); 
-    gtk_render_frame(ctx, cr, x0,y0,rect_width, rect_height);
+    dt_style_query_dimensions(ctx, 0,0,width, height, &outer_rect, &inner_rect);
+    gtk_render_background(ctx, cr, outer_rect.x ,outer_rect.y, outer_rect.width, outer_rect.height); 
+    gtk_render_frame(ctx, cr, outer_rect.x ,outer_rect.y, outer_rect.width, outer_rect.height); 
     if(img)
     {
       GtkStyleContext* extensionCtx = dt_create_style_context(ctx, "extension", NULL, -1); 
       const char *ext = img->filename + strlen(img->filename);
       while(ext > img->filename && *ext != '.') ext--;
       ext++;
-      dt_draw_text_with_style(cr, extensionCtx, ext, 0, 0, width, height);
+      dt_draw_text_with_style(cr, extensionCtx, ext, inner_rect.x, inner_rect.y, inner_rect.width, inner_rect.height);
+
+      g_object_unref(extensionCtx);
     }
   }
 
   dt_mipmap_buffer_t buf;
   dt_mipmap_size_t mip
-      = dt_mipmap_cache_get_matching_size(darktable.mipmap_cache, imgwd * width, imgwd * height);
+      = dt_mipmap_cache_get_matching_size(darktable.mipmap_cache, imgwd * inner_rect.width, imgwd * inner_rect.height);
   dt_mipmap_cache_get(darktable.mipmap_cache, &buf, imgid, mip, DT_MIPMAP_BEST_EFFORT, 'r');
   // if we got a different mip than requested, and it's darktable.gui->styleContexts[DT_GUI_STYLE_CONTEXT_PREVIEW]; not a skull (8x8 px), we count
   // this thumbnail as missing (to trigger re-exposure)
@@ -1058,6 +1092,12 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   if (draw_thumb)
   {
     float scale = 1.0;
+
+    GtkStyleContext *imageCtx = dt_create_style_context(ctx, "image", NULL, -1); 
+    GdkRectangle image_outer_rect = {0, 0, 0, 0};
+    GdkRectangle image_inner_rect = {0, 0, 0, 0};
+
+    dt_style_query_dimensions(imageCtx, inner_rect.x, inner_rect.y, inner_rect.width, inner_rect.height, &image_outer_rect, &image_inner_rect);
 
     cairo_surface_t *surface = NULL;
     uint8_t *rgbbuf = NULL;
@@ -1132,33 +1172,31 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
 
      // if(zoom == 1 && !image_only)
      // {
-        GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
+  /*      GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
         gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
 
         GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
         gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
         //const int32_t tb = DT_PIXEL_APPLY_DPI(dt_conf_get_int("plugins/darkroom/ui/border_size"));
         float horizontal_shrink = DT_PIXEL_APPLY_DPI((float)tb.left + tb.right + tm.left + tm.right);
-        float vertical_shrink = DT_PIXEL_APPLY_DPI((float)tb.top + tb.bottom + tm.top + tm.bottom);
-        scale = fminf((width - horizontal_shrink) / (float)buf.width, (height - vertical_shrink) / (float)buf.height);
+        float vertical_shrink = DT_PIXEL_APPLY_DPI((float)tb.top + tb.bottom + tm.top + tm.bottom);*/
+        scale = fminf(image_inner_rect.width / (float)buf.width, image_inner_rect.height / (float)buf.height);
     //  }
 //      else
   //      scale = fminf(width * imgwd / (float)buf.width, height * imgwd / (float)buf.height);
     }
     // draw centered and fitted:
     cairo_save(cr);
-    GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
+    /*GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
     gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
     GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
     gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
-    
+    */
     if (image_only) // in this case we want to display the picture exactly at (px, py)
       cairo_translate(cr, px, py);
-    else if(!buf.buf)
-      cairo_translate(cr, width/2.0, height/2.0);
     else{
-
-      cairo_translate(cr, buf.width*scale / 2.0 + DT_PIXEL_APPLY_DPI(tm.left+tb.left), buf.height*scale / 2.0 +DT_PIXEL_APPLY_DPI(tm.top+tb.top));
+      cairo_translate(cr, image_inner_rect.width / 2 + image_inner_rect.x, image_inner_rect.height / 2 + image_inner_rect.y);
+      //cairo_translate(cr, buf.width*scale / 2.0 + DT_PIXEL_APPLY_DPI(tm.left+tb.left), buf.height*scale / 2.0 +DT_PIXEL_APPLY_DPI(tm.top+tb.top));
     }
     cairo_scale(cr, scale, scale);
 
@@ -1229,6 +1267,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
         cairo_stroke(cr);
       }
     }
+    g_object_unref(imageCtx);
   }
 
   cairo_restore(cr);
@@ -1553,6 +1592,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   if(darktable.unmuted & DT_DEBUG_PERF)
     dt_print(DT_DEBUG_LIGHTTABLE, "[lighttable] image expose took %0.04f sec\n", end - start);
   
+  fprintf(stderr, "[lighttable] image expose took %0.04f sec \n", end - start);
   g_object_unref(ctx);
   //gtk_style_context_restore(ctx);
   return missing;
