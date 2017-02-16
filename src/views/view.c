@@ -910,7 +910,7 @@ void dt_style_query_dimensions(GtkStyleContext *ctx, gint x, gint y, gint width,
 }
 
 void dt_draw_text_with_style(cairo_t *cr, GtkStyleContext *ctx, const char* txt, int x, int y, int width, int height){
-      /*PangoLayout *layout;
+      PangoLayout *layout;
       PangoRectangle ink;
       PangoFontDescription *desc; // = gtk_style_context_get_font(ctx, gtk_style_context_get_state(ctx));
       gtk_style_context_get (ctx, gtk_style_context_get_state(ctx), "font", &desc, NULL);
@@ -920,18 +920,10 @@ void dt_draw_text_with_style(cairo_t *cr, GtkStyleContext *ctx, const char* txt,
       pango_layout_set_text(layout, txt, -1);
       pango_layout_get_pixel_extents(layout, &ink, NULL);
 
-      gint t_width = 0, t_height = 0;
-      //GdkRectangle area = { 0, 0, 0, 0};
-      //GdkRectangle textarea = {0, 0, 0, 0};
-      //dt_style_query_dimensions(ctx, x,y,width, height, &area, &textarea);
-      pango_layout_get_pixel_size(layout, &t_width, &t_height);
-      //gtk_render_background(ctx, cr, x+tm.left, y+tm.top, t_width+tm.right+tb.left+tb.right, t_height+tm.bottom+tb.top+tb.bottom);
-      //gtk_render_layout(ctx, cr, x - ink.x + tm.left+tb.left, y + tm.top + tb.top, layout);
       gtk_render_background(ctx, cr, x,y,width, height);
       gtk_render_frame(ctx, cr, x,y,width, height);
       gtk_render_layout(ctx, cr, x,y,layout);
       g_object_unref(layout);
-*/
 }
 
 GtkStyleContext* dt_create_style_context(GtkStyleContext* parent, const char* selector, const char **siblings, gint pos){
@@ -962,8 +954,8 @@ GtkStyleContext* dt_create_style_context(GtkStyleContext* parent, const char* se
     }else{
       GtkWidgetPath *siblings_path = gtk_widget_path_new();
       for(guint i=0; siblings[i]; ++i){
-        gtk_widget_path_append_type(path, G_TYPE_NONE);
-        gtk_widget_path_iter_set_name(path, -1, selector);
+        gtk_widget_path_append_type(siblings_path, G_TYPE_NONE);
+        gtk_widget_path_iter_set_object_name(siblings_path, -1, siblings[i]);
       }
       gtk_widget_path_append_with_siblings(path, siblings_path, pos);
       gtk_widget_path_unref(siblings_path);
@@ -1000,7 +992,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   const gboolean draw_audio = !image_only;
 
   cairo_save(cr);
-  float /*bgcol = 0.4, fontcol = 0.425,*/ bordercol = 0.1, outlinecol = 0.2;
+  float /*bgcol = 0.4, fontcol = 0.425, bordercol = 0.1,*/ outlinecol = 0.2;
   int selected = 0, is_grouped = 0;
   // this is a gui thread only thing. no mutex required:
   const int imgsel = dt_control_get_mouse_over_id(); //  darktable.control->global_settings.lib_image_mouse_over_id;
@@ -1018,6 +1010,15 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
 
   dt_image_t buffered_image;
   const dt_image_t *img = dt_image_cache_testget(darktable.image_cache, imgid, 'r');
+  const gboolean image_is_rejected = (img && ((img->flags & 0x7) == 6));
+
+  if (image_is_rejected) {
+    gtk_style_context_add_class(ctx, "rejected");
+  }
+
+  if (draw_metadata) {
+    gtk_style_context_add_class(ctx, "visible_metadata");
+  }
 
   if (image_only) {
     gtk_style_context_add_class(ctx, "image_only");
@@ -1050,6 +1051,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   GdkRectangle outer_rect = {0, 0, 0, 0};
   GdkRectangle inner_rect = {0, 0, 0, 0};
     
+  dt_style_query_dimensions(ctx, 0,0,width, height, &outer_rect, &inner_rect);
   float imgwd = 0.90f;
   if (image_only)
   {
@@ -1062,11 +1064,6 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   }
   else
   {
-    //double x0 = DT_PIXEL_APPLY_DPI(1), y0 = DT_PIXEL_APPLY_DPI(1), rect_width = width - DT_PIXEL_APPLY_DPI(2),
-     //      rect_height = height - DT_PIXEL_APPLY_DPI(2);//, radius = DT_PIXEL_APPLY_DPI(5);
-    
-
-    dt_style_query_dimensions(ctx, 0,0,width, height, &outer_rect, &inner_rect);
     gtk_render_background(ctx, cr, outer_rect.x ,outer_rect.y, outer_rect.width, outer_rect.height); 
     gtk_render_frame(ctx, cr, outer_rect.x ,outer_rect.y, outer_rect.width, outer_rect.height); 
     if(img)
@@ -1083,7 +1080,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
 
   dt_mipmap_buffer_t buf;
   dt_mipmap_size_t mip
-      = dt_mipmap_cache_get_matching_size(darktable.mipmap_cache, imgwd * inner_rect.width, imgwd * inner_rect.height);
+      = dt_mipmap_cache_get_matching_size(darktable.mipmap_cache, imgwd * width, imgwd * height);
   dt_mipmap_cache_get(darktable.mipmap_cache, &buf, imgid, mip, DT_MIPMAP_BEST_EFFORT, 'r');
   // if we got a different mip than requested, and it's darktable.gui->styleContexts[DT_GUI_STYLE_CONTEXT_PREVIEW]; not a skull (8x8 px), we count
   // this thumbnail as missing (to trigger re-exposure)
@@ -1169,29 +1166,24 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
         surface
           = cairo_image_surface_create_for_data(rgbbuf, CAIRO_FORMAT_RGB24, buf.width, buf.height, stride);
       }
-
-     // if(zoom == 1 && !image_only)
-     // {
-  /*      GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
-        gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
-
-        GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
-        gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
-        //const int32_t tb = DT_PIXEL_APPLY_DPI(dt_conf_get_int("plugins/darkroom/ui/border_size"));
-        float horizontal_shrink = DT_PIXEL_APPLY_DPI((float)tb.left + tb.right + tm.left + tm.right);
-        float vertical_shrink = DT_PIXEL_APPLY_DPI((float)tb.top + tb.bottom + tm.top + tm.bottom);*/
-        scale = fminf(image_inner_rect.width / (float)buf.width, image_inner_rect.height / (float)buf.height);
-    //  }
-//      else
-  //      scale = fminf(width * imgwd / (float)buf.width, height * imgwd / (float)buf.height);
+      scale = fminf(image_inner_rect.width / (float)buf.width, image_inner_rect.height / (float)buf.height);
     }
     // draw centered and fitted:
     cairo_save(cr);
-    /*GtkBorder tm = (GtkBorder) { 0, 0, 0, 0 };
-    gtk_style_context_get_margin(ctx, gtk_style_context_get_state(ctx), &tm);
-    GtkBorder tb = (GtkBorder) { 0, 0, 0, 0 };
-    gtk_style_context_get_border(ctx, gtk_style_context_get_state(ctx), &tb);
-    */
+
+    if ( buf.buf && !image_only ) {
+     GtkBorder imgb = (GtkBorder){0, 0, 0, 0};
+     gtk_style_context_get_border(imageCtx, gtk_style_context_get_state(imageCtx), &imgb);
+       
+      gint imgx = image_inner_rect.x + 0.5*(image_inner_rect.width - scale*buf.width) - imgb.left,
+           imgy = image_inner_rect.y + 0.5*(image_inner_rect.height - scale*buf.height) - imgb.top,
+           imgw = scale*buf.width + imgb.left + imgb.right,
+           imgh = scale*buf.height + imgb.top + imgb.bottom;
+
+      gtk_render_background(imageCtx, cr, imgx, imgy, imgw, imgh);
+      gtk_render_frame(imageCtx, cr, imgx, imgy, imgw, imgh);
+    }
+
     if (image_only) // in this case we want to display the picture exactly at (px, py)
       cairo_translate(cr, px, py);
     else{
@@ -1219,54 +1211,10 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
 
     free(rgbbuf);
 
-    if (image_only)
-    {
-      cairo_restore(cr);
-      cairo_save(cr);
-      cairo_new_path(cr);
-    }
-    else
-    {
-      // border around image
-      cairo_set_source_rgb(cr, bordercol, bordercol, bordercol);
-      if(buf.buf && (selected || zoom == 1))
-      {
-        const float border = zoom == 1 ? DT_PIXEL_APPLY_DPI(16 / scale) : DT_PIXEL_APPLY_DPI(2 / scale);
-        cairo_set_line_width(cr, DT_PIXEL_APPLY_DPI(1. / scale));
-        if(zoom == 1)
-        {
-          // draw shadow around border
-          cairo_set_source_rgb(cr, 0.2, 0.2, 0.2);
-          cairo_stroke(cr);
-          // cairo_new_path(cr);
-          cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
-          float alpha = 1.0f;
-          for(int k = 0; k < 16; k++)
-          {
-            cairo_rectangle(cr, 0, 0, buf.width, buf.height);
-            cairo_new_sub_path(cr);
-            cairo_rectangle(cr, -k / scale, -k / scale, buf.width + 2. * k / scale, buf.height + 2. * k / scale);
-            cairo_set_source_rgba(cr, 0, 0, 0, alpha);
-            alpha *= 0.6f;
-            cairo_fill(cr);
-          }
-        }
-        else
-        {
-          cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
-          cairo_new_sub_path(cr);
-          cairo_rectangle(cr, -border, -border, buf.width + 2. * border, buf.height + 2. * border);
-          cairo_stroke_preserve(cr);
-          cairo_set_source_rgb(cr, 1.0 - bordercol, 1.0 - bordercol, 1.0 - bordercol);
-          cairo_fill(cr);
-        }
-      }
-      else if(buf.buf)
-      {
-        cairo_set_line_width(cr, DT_PIXEL_APPLY_DPI(0.5 / scale));
-        cairo_stroke(cr);
-      }
-    }
+    cairo_restore(cr);
+    cairo_save(cr);
+    cairo_new_path(cr);
+
     g_object_unref(imageCtx);
   }
 
@@ -1281,10 +1229,6 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   {
     if(draw_metadata && width > DECORATION_SIZE_LIMIT)
     {
-      // draw mouseover hover effects, set event hook for mouse button down!
-      cairo_set_line_width(cr, DT_PIXEL_APPLY_DPI(1.5));
-      cairo_set_source_rgb(cr, outlinecol, outlinecol, outlinecol);
-      cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
       float r1, r2;
       if(zoom != 1)
       {
@@ -1302,19 +1246,13 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
         y = 0.90 * height;
       else
         y = .12 * fscale;
-      const gboolean image_is_rejected = (img && ((img->flags & 0x7) == 6));
 
       if(img){
-        gtk_style_context_save(ctx);
-        GtkStyleContext *starctx = dt_create_style_context(ctx, "star", NULL, -1);
-
-        //GtkStyleContext *starctx = darktable.gui->styleContexts[DT_GUI_STYLE_CONTEXT_PREVIEW_STAR];
-        //fprintf(stderr, "path (ctx) %s\n", gtk_widget_path_to_string(gtk_style_context_get_path(ctx)));
-        //fprintf(stderr, "state (ctx) %d\n", gtk_style_context_get_state(ctx));
-        //fprintf(stderr, "path (star) %s\n\n", gtk_widget_path_to_string(gtk_style_context_get_path(starctx)));
-        //fprintf(stderr, "state (starctx) %d\n", gtk_style_context_get_state(starctx));
+        const char *star_siblings[6] = { "star", "star", "star", "star", "star", NULL }; 
+   
         for(int k = 0; k < 5; k++)
         {
+          GtkStyleContext *starctx = dt_create_style_context(ctx, "star", star_siblings, k);
           if(zoom != 1)
             x = (0.41 + k * 0.12) * width;
           else
@@ -1323,26 +1261,24 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
           if(!image_is_rejected) // if rejected: draw no stars
           {
             dt_view_star(cr, x, y, r1, r2);
+            gtk_style_context_set_state(starctx, GTK_STATE_FLAG_NORMAL);
             // Only draw hovering effects in stars for the hovered image
             // printf ("Image selected: %d - Image processed: %d\n", imgsel, imgid);
             if((imgsel == imgid || zoom == 1) && ((px - x) * (px - x) + (py - y) * (py - y) < r1 * r1))
             {
-              gtk_style_context_set_state(starctx, gtk_style_context_get_state(starctx) |GTK_STATE_FLAG_PRELIGHT);
+              gtk_style_context_set_state(starctx, gtk_style_context_get_state(starctx) | GTK_STATE_FLAG_PRELIGHT);
               *image_over = DT_VIEW_STAR_1 + k;
             }
-            else if((img->flags & 0x7) > k)
+            
+            if((img->flags & 0x7) > k)
             {
-              gtk_style_context_set_state(starctx, GTK_STATE_FLAG_SELECTED);
+              gtk_style_context_set_state(starctx,  gtk_style_context_get_state(starctx) | GTK_STATE_FLAG_SELECTED);
             }
-            else{
-              gtk_style_context_set_state(starctx, GTK_STATE_FLAG_NORMAL);
-            }
+          
             dt_draw_with_style(cr, starctx);
-        //    fprintf(stderr, "state (starctx) %d\n", gtk_style_context_get_state(starctx));
-         //   fprintf(stderr, "path (star) %s\n\n", gtk_widget_path_to_string(gtk_style_context_get_path(starctx)));
           }
+          g_object_unref(starctx);
         }
-        g_object_unref(starctx);
       }
 
       // Image rejected?
@@ -1350,6 +1286,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
         x = 0.11 * width;
       else
         x = .04 * fscale;
+
 
 
       if(image_is_rejected) cairo_set_source_rgb(cr, 1., 0., 0.);
@@ -1592,7 +1529,7 @@ int dt_view_image_expose(dt_view_image_over_t *image_over, uint32_t imgid, cairo
   if(darktable.unmuted & DT_DEBUG_PERF)
     dt_print(DT_DEBUG_LIGHTTABLE, "[lighttable] image expose took %0.04f sec\n", end - start);
   
-  fprintf(stderr, "[lighttable] image expose took %0.04f sec \n", end - start);
+  //fprintf(stderr, "[lighttable] image expose took %0.04f sec \n", end - start);
   g_object_unref(ctx);
   //gtk_style_context_restore(ctx);
   return missing;
