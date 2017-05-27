@@ -108,6 +108,12 @@ static int tostring_member(lua_State *L)
   return 1;
 }
 
+static void changed_callback(GtkEntry *widget, gpointer user_data)
+{
+  dt_lua_async_call_alien(dt_lua_widget_trigger_callback, 0, NULL, NULL, LUA_ASYNC_TYPENAME, "lua_widget",
+                          user_data, LUA_ASYNC_TYPENAME, "const char*", "changed", LUA_ASYNC_DONE);
+}
+
 int dt_lua_init_widget_entry(lua_State* L)
 {
   dt_lua_init_widget_type(L,&entry_type,lua_entry,GTK_TYPE_ENTRY);
@@ -131,6 +137,8 @@ int dt_lua_init_widget_entry(lua_State* L)
   lua_pushcfunction(L,editable_member);
   dt_lua_gtk_wrap(L);
   dt_lua_type_register(L, lua_entry, "editable");
+
+  dt_lua_widget_register_gtk_callback(L, lua_entry, "changed", "changed_callback", G_CALLBACK(changed_callback));
 
   return 0;
 }
