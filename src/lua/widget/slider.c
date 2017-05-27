@@ -156,6 +156,12 @@ static int tostring_member(lua_State *L)
   return 1;
 }
 
+static void changed_callback(GtkEntry *widget, gpointer user_data)
+{
+  dt_lua_async_call_alien(dt_lua_widget_trigger_callback, 0, NULL, NULL, LUA_ASYNC_TYPENAME, "lua_widget",
+                          user_data, LUA_ASYNC_TYPENAME, "const char*", "value-changed", LUA_ASYNC_DONE);
+}
+
 int dt_lua_init_widget_slider(lua_State* L)
 {
   dt_lua_init_widget_type(L,&slider_type,lua_slider,DT_BAUHAUS_WIDGET_TYPE);
@@ -187,6 +193,8 @@ int dt_lua_init_widget_slider(lua_State* L)
   lua_pushcfunction(L,label_member);
   dt_lua_gtk_wrap(L);
   dt_lua_type_register(L, lua_slider, "label");
+  dt_lua_widget_register_gtk_callback(L, lua_slider, "value-changed", "changed_callback",
+                                      G_CALLBACK(changed_callback));
   return 0;
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
