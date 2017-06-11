@@ -22,6 +22,8 @@
 
 static void text_view_init(lua_State* L);
 static void text_view_cleanup(lua_State* L,lua_widget widget);
+static void on_changed(GtkTextBuffer *buffer, lua_text_view text_view);
+
 static dt_lua_widget_type_t textview_type = {
   .name = "text_view",
   .gui_init = text_view_init,
@@ -30,12 +32,14 @@ static dt_lua_widget_type_t textview_type = {
   .parent= &widget_type
 };
 
-
 static void text_view_init(lua_State* L)
 {
   lua_text_view text_view;
   luaA_to(L,lua_text_view,&text_view,1);
   dt_gui_key_accel_block_on_focus_connect(GTK_WIDGET(text_view->widget));
+
+  GtkTextBuffer *text_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_view->widget));
+  g_signal_connect(text_buffer, "changed", G_CALLBACK(on_changed), text_view);
 }
 
 static void text_view_cleanup(lua_State* L,lua_widget widget)
@@ -91,6 +95,34 @@ static int tostring_member(lua_State *L)
   return 1;
 }
 
+static void on_changed(GtkTextBuffer *buffer, lua_text_view text_view)
+{
+  dt_lua_async_call_alien(dt_lua_widget_trigger_callback, 0, NULL, NULL, LUA_ASYNC_TYPENAME, "lua_widget",
+                          text_view, LUA_ASYNC_TYPENAME, "const char*", "changed_callback", LUA_ASYNC_DONE);
+}
+
+int changed_callback(lua_State *L)
+{
+  if(lua_gettop(L) == 2)
+  {
+    lua_getuservalue(L, 1);
+    lua_pushvalue(L, 2);
+    lua_rawget(L, -2);
+    return 1;
+  }
+  lua_getuservalue(L, 1);
+  if(!lua_isnil(L, 3) && !lua_isfunction(L, 3))
+  {
+    return luaL_error(L, "bad argument for changed_callback (function or nil expected, got %s)",
+                      lua_typename(L, lua_type(L, 3)));
+  }
+  lua_pushvalue(L, 2);
+  lua_pushvalue(L, 3);
+  lua_settable(L, -3);
+  lua_pop(L, 1);
+  return 0;
+}
+
 int dt_lua_init_widget_text_view(lua_State* L)
 {
   dt_lua_init_widget_type(L,&textview_type,lua_text_view,GTK_TYPE_TEXT_VIEW);
@@ -104,6 +136,10 @@ int dt_lua_init_widget_text_view(lua_State* L)
   lua_pushcfunction(L,editable_member);
   dt_lua_gtk_wrap(L);
   dt_lua_type_register(L, lua_text_view, "editable");
+  lua_pushcfunction(L, changed_callback);
+  dt_lua_gtk_wrap(L);
+  dt_lua_type_register(L, lua_text_view, "changed_callback");
+
   return 0;
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
