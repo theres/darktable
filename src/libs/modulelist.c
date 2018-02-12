@@ -384,6 +384,13 @@ int set_params(dt_lib_module_t *self, const void *params, int size)
   const char *p = params;
   int pos = 1;
 
+  // clean up list of all modules before start to eliminate new ones
+  for(GList *iter = g_list_first(darktable.iop); iter; iter = g_list_next(iter))
+  {
+    dt_iop_module_so_t *module = (dt_iop_module_so_t *)iter->data;
+    dt_iop_so_gui_set_state(module, dt_iop_state_HIDDEN);
+  }
+
   while(pos < size)
   {
     const char *op = p + pos;
