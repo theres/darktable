@@ -30,7 +30,7 @@
 #include "libs/lib_api.h"
 #include "libs/modulegroups.h"
 
-DT_MODULE(1)
+DT_MODULE(2)
 
 #define DT_MODULE_LIST_SPACING DT_PIXEL_APPLY_DPI(2)
 
@@ -321,10 +321,36 @@ void init_presets(dt_lib_module_t *self)
   // we could have a "show all" preset, or "show simple set" but I don't think we need that.
 }
 
+void *legacy_params(dt_lib_module_t *self, const void *const old_params, const size_t old_params_size,
+                    const int old_version, int *new_version, size_t *new_size)
+{
+  if(old_version == 1)
+  {
+    char *params = malloc(old_params_size + 1);
+    memcpy(params + 1, old_params, old_params_size);
+    params[0] = (char)IOP_GROUP_NONE;
+    *new_size = old_params_size + 1;
+    *new_version = 2;
+    return params;
+  }
+  return NULL;
+}
+
+
 void *get_params(dt_lib_module_t *self, int *size)
 {
-  int len = 0;
+  int len = 1;
   char *params = NULL;
+
+  params = malloc(sizeof(char) * len);
+  if(!params)
+  {
+    *size = 0;
+    return params;
+  }
+  params[0] = (char)dt_dev_modulegroups_get(darktable.develop);
+
+
   for(GList *iter = g_list_first(darktable.iop); iter; iter = g_list_next(iter))
   {
     dt_iop_module_so_t *module = (dt_iop_module_so_t *)iter->data;
@@ -356,7 +382,8 @@ void *get_params(dt_lib_module_t *self, int *size)
 int set_params(dt_lib_module_t *self, const void *params, int size)
 {
   const char *p = params;
-  int pos = 0;
+  int pos = 1;
+
   while(pos < size)
   {
     const char *op = p + pos;
@@ -374,6 +401,12 @@ int set_params(dt_lib_module_t *self, const void *params, int size)
       }
     }
     pos += op_len + 2;
+  }
+
+  dt_iop_group_t modulegroup = p[0];
+  if(modulegroup != IOP_GROUP_NONE)
+  {
+    dt_dev_modulegroups_set(darktable.develop, modulegroup);
   }
 
   return pos != size;
